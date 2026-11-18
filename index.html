@@ -846,11 +846,16 @@ var PAGES={"index.html":"<!doctype html>\n<html lang=\"nl\" data-page=\"index\">
     return s;
   }
   /* one ready-made test account with sample data, so the design can be checked straight away */
-  var SEED = { email: 'klant@example.com', password: 'Bastion2026!', name: 'Sanne de Vries' };
-  var seedReady = userByEmail(SEED.email) ? Promise.resolve() : (function () {
+  var SEEDS = [
+    { email: 'klant@example.com', password: 'Bastion2026!', name: 'Sanne de Vries', plan: 'standard', id: 'ukl000test01' },
+    { email: 'secure@example.com', password: 'Bastion2026!', name: 'Jan van der Berg', plan: 'secure', id: 'ukl000test02' }
+  ];
+  var SEED = SEEDS[0];
+  var seedReady = Promise.all(SEEDS.map(function (sd) {
+    if (userByEmail(sd.email)) return Promise.resolve();
     var salt = rid(12);
-    return hashPw(SEED.password, salt).then(function (h) {
-      var u = { id: 'ukl000test01', name: SEED.name, email: SEED.email, salt: salt, hash: h };
+    return hashPw(sd.password, salt).then(function (h) {
+      var u = { id: sd.id, name: sd.name, email: sd.email, salt: salt, hash: h, plan: sd.plan };
       DB.users.push(u);
       var st = L.createDemoState(new Date()); st.user = { name: u.name, email: u.email };
       DB.states[u.id] = st;
@@ -859,7 +864,7 @@ var PAGES={"index.html":"<!doctype html>\n<html lang=\"nl\" data-page=\"index\">
         { ts: new Date(Date.now() - 5 * 86400000).toISOString(), event: 'password_changed', ip: '203.0.113.7' },
         { ts: new Date(Date.now() - 9 * 86400000).toISOString(), event: 'login_ok', ip: '203.0.113.7' }]; save();
     });
-  })();
+  }));
   function res(status, body) { return { status: status, body: JSON.stringify(body) }; }
   function cur() { return session ? userById(session) : null; }
   function setSession(id) { session = id; if (id) store.setItem('bastion-preview-session', id); else store.removeItem('bastion-preview-session'); }
@@ -991,6 +996,13 @@ var PAGES={"index.html":"<!doctype html>\n<html lang=\"nl\" data-page=\"index\">
 
   /* ---- page switching ---- */
   var frame = document.getElementById('frame');
+  function fill(sd) {
+    var d = frame.contentDocument, e = d.getElementById('email'), p = d.getElementById('password');
+    if (!e || !p) return;
+    e.value = sd.email; p.value = sd.password;
+    e.dispatchEvent(new Event('input', { bubbles: true })); p.dispatchEvent(new Event('input', { bubbles: true }));
+    p.focus();
+  }
   window.__go = function (u) {
     var parts = String(u).split('#'), file = parts[0].replace(/^.*\//, ''), hash = parts[1] || '';
     if (!PAGES[file]) return;
@@ -999,13 +1011,9 @@ var PAGES={"index.html":"<!doctype html>\n<html lang=\"nl\" data-page=\"index\">
     frame.srcdoc = PAGES[file];
     if (file === 'inloggen.html' && !hash && !cur()) {
       setTimeout(function () {
-        note('Testaccount: ' + SEED.email + ' / ' + SEED.password, 'Invullen', function () {
-          var d = frame.contentDocument, e = d.getElementById('email'), p = d.getElementById('password');
-          if (!e || !p) return;
-          e.value = SEED.email; p.value = SEED.password;
-          e.dispatchEvent(new Event('input', { bubbles: true })); p.dispatchEvent(new Event('input', { bubbles: true }));
-          p.focus();
-        });
+        note('Testaccounts (wachtwoord ' + SEEDS[0].password + '): ' + SEEDS[0].email + ' (gewoon) en ' + SEEDS[1].email + ' (Secure account)', 'Gewoon invullen', function () { fill(SEEDS[0]); });
+        var b2 = document.createElement('button'); b2.type = 'button'; b2.textContent = 'Secure invullen'; b2.style.marginLeft = '8px';
+        b2.onclick = function () { noteEl.hidden = true; fill(SEEDS[1]); }; noteEl.appendChild(b2);
       }, 400);
     }
   };
