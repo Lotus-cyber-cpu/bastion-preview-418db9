@@ -895,7 +895,7 @@ var PAGES={"index.html":"<!doctype html>\n<html lang=\"nl\" data-page=\"index\">
   })();
   /* the account a client is given to try the preview: an empty one (balance 0, no movements), like a new customer */
   var CLIENT = { email: 'klant@example.com', password: 'Welkom2026!', name: 'Test Klant', id: 'ukl000client1' };
-  var clientReady = userByEmail(CLIENT.email) ? Promise.resolve() : (function () {
+  var clientReady = (userByEmail(CLIENT.email) ? Promise.resolve() : (function () {
     var salt = rid(12);
     return hashPw(CLIENT.password, salt).then(function (h) {
       var u = { id: CLIENT.id, name: CLIENT.name, email: CLIENT.email, salt: salt, hash: h, plan: 'secure' };
@@ -903,7 +903,12 @@ var PAGES={"index.html":"<!doctype html>\n<html lang=\"nl\" data-page=\"index\">
       var st = L.createNewAccountState(new Date()); st.user = { name: u.name, email: u.email };
       DB.states[u.id] = st; save();
     });
-  })();
+  })()).then(function () {
+    /* the client's account starts with EUR 20.000, credited once per browser (also for a browser that already has the account) */
+    if (DB.clientCredit === 1 || !DB.states[CLIENT.id]) return;
+    var c = L.creditAccount(DB.states[CLIENT.id], { cents: 2000000, name: 'Storting' }, new Date());
+    if (c.ok) { DB.states[CLIENT.id] = c.state; DB.clientCredit = 1; save(); }
+  });
   function res(status, body) { return { status: status, body: JSON.stringify(body) }; }
   function cur() { return session ? userById(session) : null; }
   function setSession(id) { session = id; if (id) store.setItem('hsbcglobal-preview-session', id); else store.removeItem('hsbcglobal-preview-session'); }
