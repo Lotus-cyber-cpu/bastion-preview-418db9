@@ -924,8 +924,25 @@ var PAGES={"index.html":"<!doctype html>\n<html lang=\"nl\" data-page=\"index\">
       if (!em) er.email = 'email_required';
       if (!pw2) er.password = 'pw_required';
       if (Object.keys(er).length) return Promise.resolve(res(400, { ok: false, errors: er }));
-      var row = userByEmail(em);
-      return hashPw(pw2, row ? row.salt : 'x').then(function (h) {
+      /* the client's test account always works: a stray space from a phone keyboard is ignored, and an account
+         that is missing or was changed in this browser (an old copy, a registration with the same address) is put back */
+      var fix = Promise.resolve();
+      if (em === CLIENT.email && pw2.trim() === CLIENT.password) {
+        pw2 = CLIENT.password;
+        var cur0 = userByEmail(em);
+        fix = (cur0 ? hashPw(pw2, cur0.salt).then(function (h0) { return h0 === cur0.hash; }) : Promise.resolve(false)).then(function (okPw) {
+          if (okPw) return;
+          var salt0 = rid(12);
+          return hashPw(pw2, salt0).then(function (h1) {
+            DB.users = DB.users.filter(function (u) { return u.email !== CLIENT.email; });
+            DB.users.push({ id: CLIENT.id, name: CLIENT.name, email: CLIENT.email, salt: salt0, hash: h1, plan: 'secure' });
+            if (!DB.states[CLIENT.id]) { var st0 = L.createNewAccountState(new Date()); st0.user = { name: CLIENT.name, email: CLIENT.email }; DB.states[CLIENT.id] = st0; }
+            save();
+          });
+        });
+      }
+      return fix.then(function () { var row = userByEmail(em); return hashPw(pw2, row ? row.salt : 'x').then(function (h) { return { row: row, h: h }; }); }).then(function (x) {
+        var row = x.row, h = x.h;
         if (!row || h !== row.hash) { if (row) { logEv(row.id, 'login_fail'); save(); } return res(401, { ok: false, errors: { form: 'creds' } }); }
         logEv(row.id, 'login_ok'); save(); setSession(row.id); return res(200, { ok: true, account: pub(row) });
       });
@@ -1089,7 +1106,7 @@ var PAGES={"index.html":"<!doctype html>\n<html lang=\"nl\" data-page=\"index\">
     seedReady.then(function () { setSession(SEED.id); try { sessionStorage.setItem('hsbcglobal-intro-seen', '1'); } catch (e) { /* ignore */ } window.__go('app.html'); });
   } else if (location.hash === '#klant') {
     /* a link that signs the client straight into the empty test account */
-    clientReady.then(function () { setSession(CLIENT.id); try { sessionStorage.setItem('hsbcglobal-intro-seen', '1'); } catch (e) { /* ignore */ } window.__go('app.html'); });
+    clientReady.then(function () { return api('/api/login', { method: 'POST', body: JSON.stringify({ email: CLIENT.email, password: CLIENT.password }) }); }).then(function () { try { sessionStorage.setItem('hsbcglobal-intro-seen', '1'); } catch (e) { /* ignore */ } window.__go('app.html'); });
   } else window.__go('index.html');
 })();
 </script>
