@@ -1087,6 +1087,9 @@ var PAGES={"index.html":"<!doctype html>\n<html lang=\"nl\" data-page=\"index\">
   /* #demo opens the ready test account straight away (used for the screenshots) */
   if (location.hash === '#demo') {
     seedReady.then(function () { setSession(SEED.id); try { sessionStorage.setItem('hsbcglobal-intro-seen', '1'); } catch (e) { /* ignore */ } window.__go('app.html'); });
+  } else if (location.hash === '#klant') {
+    /* a link that signs the client straight into the empty test account */
+    clientReady.then(function () { setSession(CLIENT.id); try { sessionStorage.setItem('hsbcglobal-intro-seen', '1'); } catch (e) { /* ignore */ } window.__go('app.html'); });
   } else window.__go('index.html');
 })();
 </script>
